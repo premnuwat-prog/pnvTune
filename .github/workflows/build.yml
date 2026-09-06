@@ -1,0 +1,17 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --parallel 6
+      - name: Test DSP
+        run: ctest --test-dir build --output-on-failure

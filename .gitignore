@@ -1,0 +1,6 @@
+build/
+.build-env/
+.DS_Store
+dist/
+vendor/
+docs/*.log
