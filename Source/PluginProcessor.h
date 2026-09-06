@@ -24,11 +24,11 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
     juce::AudioProcessorValueTreeState state;
-    std::atomic<float> detected{0}, target{-1}, cents{0}, level{0};
+    std::atomic<float> detected{0}, target{-1}, cents{0}, level{0}, gateOpen{0};
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters();
     void process(juce::AudioBuffer<float>&, bool);
     prem::PitchEngine engine;
-    std::array<std::atomic<float>*, 23> values;
+    std::array<std::atomic<float>*, 24> values;
     std::atomic<int> currentProgram{0};
 };

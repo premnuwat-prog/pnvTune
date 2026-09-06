@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(pnvTune VERSION 0.3.0 LANGUAGES C CXX)
+project(pnvTune VERSION 0.4.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vendor/JUCE-8.0.9/CMakeLists.txt")

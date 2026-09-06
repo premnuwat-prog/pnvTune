@@ -1,4 +1,4 @@
-# pnvTune 0.3 validation — 2026-09-06
+# pnvTune 0.4 validation — 2026-09-07
 
 Built in Release for Apple Silicon arm64 using Apple clang 17 and JUCE 8.0.9.
 
@@ -19,13 +19,17 @@ Built in Release for Apple Silicon arm64 using Apple clang 17 and JUCE 8.0.9.
   independent enable/automation, root and quality. G Major + E Major adds G# only.
 - Pitch detection now median-filters three observations, smooths valid pitch and requires
   two consecutive frames before changing target; three missing frames are tolerated.
+- Vocal Gate prevents sub-threshold pitched bleed from starting correction without muting
+  the output. Large pitch jumps require three stable analysis frames, reducing guitar-note
+  attacks taking control while an established vocal is present.
 - Cubic delay interpolation remains enabled. Air Preserve and its two per-channel filter
   paths were removed completely after listening tests preferred its 0% setting.
 - Silence remains zero; identical stereo inputs remain sample-aligned; tested outputs finite.
-- CPU: approximately 0.03–0.052 seconds to process 10 seconds of synthetic stereo
-  audio at 48 kHz / 64 samples (0.3–0.52% of a single core, offline benchmark).
+- CPU: approximately 0.034 seconds to process 10 seconds of synthetic stereo
+  audio at 48 kHz / 64 samples (0.34% of a single core, offline benchmark).
   This is not a guarantee of total Logic session CPU or worst-case real-time scheduling.
-- Parameter state and factory preset round-trip, including key and retune values, passed.
+- Parameter state and factory preset round-trip, including key, borrowed chords,
+  Vocal Gate and retune values, passed.
 - Real JUCE editor rendered at 2× scale and visually inspected; preview: pnvTune.png.
 - UI refresh is limited to 24 Hz; the audio callback still allocates no memory and takes no locks.
 - Installed at the original `PremTune.component` and `PremTune.vst3` paths with the
@@ -44,6 +48,8 @@ Built in Release for Apple Silicon arm64 using Apple clang 17 and JUCE 8.0.9.
   for every wet sample. Detection settling and retune response add to perceived correction time.
 - No microphone/voice recording was made; singing quality, formants, rapid transitions,
   breath sounds and hardware round-trip latency remain unverified on actual vocals.
+- The mixed-source regression uses synthetic voice-like and guitar-like harmonic tones.
+  It verifies octave/subharmonic rejection after vocal lock, not full source separation.
 - Native AU host compatibility is checked with Apple's validator; listening quality is
   based on the user's real vocal test of the preceding version and the preferred Air = 0 path.
 - VST3 was built, generated its module manifest and passed signature checks; it has

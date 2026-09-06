@@ -50,6 +50,29 @@ int main(){try{
     int fiveChordMask=0;
     for(int i=0;i<5;++i) fiveChordMask|=prem::chordMask(i*2,i%3);
     check((fiveChordMask&prem::chordMask(8,1))!=0,"Five borrowed chord masks must combine");
+    {
+        prem::PitchEngine gateEngine; gateEngine.prepare(48000); prem::Settings gateSettings;
+        gateSettings.retuneMs=0; gateSettings.vocalGateDb=-35;
+        std::vector<float> quiet(24000);
+        for(size_t i=0;i<quiet.size();++i)quiet[i]=(float)(0.004*std::sin(2*prem::pi*196*i/48000));
+        for(size_t i=0;i<quiet.size();i+=64){float* q[]={quiet.data()+i};gateEngine.process(q,1,(int)std::min<size_t>(64,quiet.size()-i),gateSettings);}
+        check(!gateEngine.vocalGateOpen && gateEngine.frequency==0,"Quiet guitar bleed must not open Vocal Gate");
+        gateEngine.prepare(48000);
+        std::vector<float> vocal(24000);
+        for(size_t i=0;i<vocal.size();++i)vocal[i]=(float)(0.25*std::sin(2*prem::pi*220*i/48000)+0.07*std::sin(4*prem::pi*220*i/48000));
+        for(size_t i=0;i<vocal.size();i+=64){float* v[]={vocal.data()+i};gateEngine.process(v,1,(int)std::min<size_t>(64,vocal.size()-i),gateSettings);}
+        check(gateEngine.vocalGateOpen && std::abs(1200*std::log2(gateEngine.frequency/220.0))<8,"Vocal above gate must remain detectable");
+
+        gateEngine.prepare(48000);
+        std::vector<float> mixed(48000);
+        for(size_t i=0;i<mixed.size();++i){
+            const double voice=0.26*std::sin(2*prem::pi*220*i/48000)+0.08*std::sin(4*prem::pi*220*i/48000);
+            const double guitar=i<16000?0.0:0.15*std::sin(2*prem::pi*329.63*i/48000)+0.06*std::sin(4*prem::pi*329.63*i/48000);
+            mixed[i]=(float)(voice+guitar);
+        }
+        for(size_t i=0;i<mixed.size();i+=64){float* m[]={mixed.data()+i};gateEngine.process(m,1,(int)std::min<size_t>(64,mixed.size()-i),gateSettings);}
+        check(std::abs(1200*std::log2(gateEngine.frequency/220.0))<20,"Established vocal must retain priority over simultaneous guitar bleed");
+    }
     s.mix=100;s.scale=2;s.key=9;
     auto begin=std::chrono::steady_clock::now();
     for(int block=0;block<7500;++block){for(int i=0;i<64;++i)l[i]=r[i]=(float)(0.3*std::sin(2*prem::pi*223*(block*64+i)/48000));e.process(p,2,64,s);}

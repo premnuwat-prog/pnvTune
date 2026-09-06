@@ -18,6 +18,7 @@ PremLook::PremLook() {
     setColour(juce::PopupMenu::highlightedBackgroundColourId,lime); setColour(juce::PopupMenu::highlightedTextColourId,bg);
     setColour(juce::Slider::textBoxTextColourId,ink); setColour(juce::Slider::textBoxBackgroundColourId,juce::Colours::transparentBlack);
     setColour(juce::Slider::textBoxOutlineColourId,juce::Colours::transparentBlack);
+    setColour(juce::Slider::trackColourId,line); setColour(juce::Slider::thumbColourId,lime);
     setColour(juce::TextButton::buttonColourId,panel); setColour(juce::TextButton::buttonOnColourId,lime);
     setColour(juce::TextButton::textColourOffId,muted); setColour(juce::TextButton::textColourOnId,bg);
 }
@@ -61,6 +62,9 @@ PremTuneEditor::PremTuneEditor(PremTuneProcessor& p):AudioProcessorEditor(p),pro
     }
     bypass.setClickingTogglesState(true); addAndMakeVisible(bypass);
     bypassAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.state,"bypass",bypass);
+    vocalGate.setSliderStyle(juce::Slider::LinearHorizontal);vocalGate.setTextBoxStyle(juce::Slider::TextBoxRight,false,62,22);
+    vocalGate.setTextValueSuffix(" dB");vocalGate.setTooltip("Raise this until guitar bleed no longer triggers tuning, then lower it slightly so quiet vocal words still open the gate.");
+    addAndMakeVisible(vocalGate);vocalGateAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.state,"vocalGate",vocalGate);
     addChord.setTooltip("Reveal and enable one borrowed chord slot, up to five."); addAndMakeVisible(addChord);
     removeChord.setTooltip("Remove the last borrowed chord slot."); addAndMakeVisible(removeChord);
     addChord.onClick=[this]{
@@ -103,9 +107,11 @@ void PremTuneEditor::resized(){
         chordQuality[(size_t)i].setBounds(168,y,98,29);
     }
     for(int i=0;i<5;++i) knobs[(size_t)i].setBounds(24+i*158,424,140,128);
+    vocalGate.setBounds(420,582,145,24);
 }
 void PremTuneEditor::timerCallback(){
     hz=processor.detected.load(); note=processor.target.load(); correction=processor.cents.load();
+    voiceOpen=processor.gateOpen.load()>0.5f;
     meter=std::max(processor.level.load(),meter*0.84f);
     pitchHistory[(size_t)historyWrite]=hz>0?(float)(69+12*std::log2(hz/440.0)):-1;
     targetHistory[(size_t)historyWrite]=note; historyWrite=(historyWrite+1)%(int)pitchHistory.size();
@@ -160,10 +166,12 @@ void PremTuneEditor::paint(juce::Graphics& g){
     g.setColour(processor.state.getRawParameterValue("bypass")->load()>0.5f?muted:lime);g.fillEllipse(29,594,6,6);
     text(g,"12 ms",{44,585,70,24},10,muted);
     text(g,"90-1000 Hz",{132,585,100,24},10,muted);
+    g.setColour(voiceOpen?lime:muted);g.fillEllipse(326,592,7,7);
+    text(g,"VOCAL GATE",{339,585,78,24},9,muted);
     text(g,"IN",{600,585,24,24},9,muted);
     g.setColour(line);g.fillRoundedRectangle(630,593,102,7,3);
     g.setColour(meter>0.8f?juce::Colour(0xffff9f7d):lime);
     const float db=juce::Decibels::gainToDecibels(meter,-60.0f);
     g.fillRoundedRectangle(630,593,102*juce::jlimit(0.0f,1.0f,(db+60)/60),7,3);
-    text(g,"v0.3",{769,585,43,24},9,muted,juce::Justification::centredRight);
+    text(g,"v0.4",{769,585,43,24},9,muted,juce::Justification::centredRight);
 }

@@ -11,7 +11,7 @@ struct Settings {
     std::array<int, 5> chordRoot{4, 0, 0, 0, 0};
     std::array<int, 5> chordQuality{};
     std::array<bool, 5> chordEnabled{};
-    float retuneMs = 12, amount = 100, humanize = 10, mix = 100, outputDb = 0;
+    float retuneMs = 12, amount = 100, humanize = 10, mix = 100, outputDb = 0, vocalGateDb = -42;
     bool bypass = false;
 };
 
@@ -61,6 +61,8 @@ public:
         frame.assign((size_t)frameSize, 0);
         yin.assign((size_t)maxLag + 2, 0);
         smoothFast = 1.0 - std::exp(-1.0 / (rate * 0.005));
+        gateAttack = 1.0 - std::exp(-1.0 / (rate * 0.002));
+        gateRelease = 1.0 - std::exp(-1.0 / (rate * 0.035));
         reset();
     }
     void reset() {
@@ -70,13 +72,14 @@ public:
         decSum = low1 = low2 = 0;
         frequency = confidence = inputMidi = correctionCents = smoothedMidi = 0;
         targetMidi = -1;
-        pendingTarget = -1; pendingFrames = missingFrames = midiHistoryCount = 0;
+        pendingTarget = jumpCandidate = -1; pendingFrames = jumpFrames = missingFrames = midiHistoryCount = 0;
         midiHistory.fill(0);
         phase = 0.5; period = sampleRate / 220.0; ratio = 1;
-        active = 0; mixSmooth = 1; gainSmooth = 1;
+        active = gateEnvelope = 0; mixSmooth = 1; gainSmooth = 1; vocalGateOpen = false;
     }
     int latencySamples() const { return latency; }
     float frequency = 0, confidence = 0, inputMidi = 0, targetMidi = -1, correctionCents = 0;
+    bool vocalGateOpen = false;
 
     void process(float* const* data, int channels, int samples, const Settings& s) {
         if (ring[0].empty()) return;
@@ -86,6 +89,8 @@ public:
         for (int i = 0; i < samples; ++i) {
             float input[2] = {data[0][i], channels > 1 ? data[1][i] : data[0][i]};
             for (auto& v : input) if (!std::isfinite(v)) v = 0;
+            const double magnitude = std::abs(input[0]);
+            gateEnvelope += (magnitude > gateEnvelope ? gateAttack : gateRelease) * (magnitude - gateEnvelope);
             // Two low-pass stages precede decimation; analysis always follows the left/mono vocal.
             const double a = 1 - std::exp(-2 * pi * 1800.0 / sampleRate);
             low1 += a * (input[0] - low1); low2 += a * (low1 - low2);
@@ -134,13 +139,13 @@ public:
         }
     }
 private:
-    double sampleRate = 48000, analysisRate = 12000, smoothFast = 0;
+    double sampleRate = 48000, analysisRate = 12000, smoothFast = 0, gateAttack = 0, gateRelease = 0;
     int latency = 576, decimation = 4, maxLag = 134, minLag = 12, window = 192, frameSize = 328, hop = 48;
     int write = 0, analysisWrite = 0, count = 0, hopCount = 0, decCount = 0;
     double decSum = 0, low1 = 0, low2 = 0, phase = 0.5, period = 218, ratio = 1;
-    double active = 0, mixSmooth = 1, gainSmooth = 1;
-    float smoothedMidi = 0, pendingTarget = -1;
-    int pendingFrames = 0, missingFrames = 0, midiHistoryCount = 0;
+    double active = 0, mixSmooth = 1, gainSmooth = 1, gateEnvelope = 0;
+    float smoothedMidi = 0, pendingTarget = -1, jumpCandidate = -1;
+    int pendingFrames = 0, jumpFrames = 0, missingFrames = 0, midiHistoryCount = 0;
     std::array<float, 3> midiHistory{};
     std::array<std::vector<float>, 2> ring;
     std::vector<float> analysis, frame, yin;
@@ -162,8 +167,8 @@ private:
     }
     void losePitch() {
         if (++missingFrames >= 3) {
-            frequency = confidence = inputMidi = 0; targetMidi = pendingTarget = -1;
-            pendingFrames = midiHistoryCount = 0;
+            frequency = confidence = inputMidi = 0; targetMidi = pendingTarget = jumpCandidate = -1;
+            pendingFrames = jumpFrames = midiHistoryCount = 0;
         }
     }
     void detect(const Settings& s) {
@@ -172,6 +177,9 @@ private:
             frame[(size_t)j] = analysis[(size_t)((analysisWrite + j) % frameSize)];
             energy += frame[(size_t)j] * frame[(size_t)j];
         }
+        const double gateThreshold = std::pow(10.0, s.vocalGateDb / 20.0);
+        vocalGateOpen = gateEnvelope >= gateThreshold;
+        if (!vocalGateOpen) { losePitch(); return; }
         if (energy / frameSize < 0.00001) { losePitch(); return; }
         double sum = 0;
         yin[0] = 1;
@@ -192,6 +200,23 @@ private:
             }
         }
         if (selected < 0) { losePitch(); return; }
+        bool continuityRescue = false;
+        if (inputMidi != 0) {
+            const float primaryMidi = (float)(69 + 12 * std::log2((analysisRate / selected) / 440.0));
+            const float octaveDistance = std::abs(primaryMidi - smoothedMidi);
+            if (std::abs(octaveDistance - 12.0f) < 0.8f || std::abs(octaveDistance - 24.0f) < 0.8f) {
+                int nearby = -1;
+                float nearbyValue = 0.60f;
+                for (int lag = minLag + 1; lag < maxLag; ++lag) {
+                    if (yin[(size_t)lag] > yin[(size_t)(lag - 1)] || yin[(size_t)lag] > yin[(size_t)(lag + 1)]) continue;
+                    const float midi = (float)(69 + 12 * std::log2((analysisRate / lag) / 440.0));
+                    if (std::abs(midi - smoothedMidi) < 2.0f && yin[(size_t)lag] < nearbyValue) {
+                        nearby = lag; nearbyValue = yin[(size_t)lag];
+                    }
+                }
+                if (nearby >= 0) { selected = nearby; continuityRescue = true; }
+            }
+        }
         double refined = selected;
         if (selected > 1 && selected < maxLag) {
             const double l = yin[(size_t)(selected - 1)], c = yin[(size_t)selected], r = yin[(size_t)(selected + 1)];
@@ -199,10 +224,19 @@ private:
             if (std::abs(denom) > 1e-12) refined += std::clamp(0.5 * (l - r) / denom, -0.5, 0.5);
         }
         const float candidateFrequency = (float)(analysisRate / refined);
-        const float candidateConfidence = 1 - yin[(size_t)selected];
+        const float candidateConfidence = continuityRescue ? std::max(0.81f, 1 - yin[(size_t)selected]) : 1 - yin[(size_t)selected];
         if (candidateFrequency < 90 || candidateFrequency > 1000 || candidateConfidence < 0.8f) { losePitch(); return; }
         missingFrames = 0;
         const float rawMidi = (float)(69 + 12 * std::log2(candidateFrequency / 440.0));
+        // A pitched instrument leaking into the vocal mic often produces brief, large jumps.
+        // Keep following the established vocal until a distant candidate remains stable for
+        // three analysis frames. This adds only 12 ms when the singer really changes register.
+        if (inputMidi != 0 && std::abs(rawMidi - smoothedMidi) > 3.5f) {
+            if (jumpCandidate >= 0 && std::abs(rawMidi - jumpCandidate) < 0.7f) ++jumpFrames;
+            else { jumpCandidate = rawMidi; jumpFrames = 1; }
+            if (jumpFrames < 3) return;
+        }
+        jumpCandidate = -1; jumpFrames = 0;
         midiHistory[(size_t)(midiHistoryCount % 3)] = rawMidi; ++midiHistoryCount;
         float filtered = rawMidi;
         if (midiHistoryCount >= 3) {

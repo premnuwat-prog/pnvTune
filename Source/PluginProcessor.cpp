@@ -17,6 +17,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PremTuneProcessor::makeParam
     p.add(std::make_unique<AudioParameterFloat>(ParameterID{"humanize",1}, "Humanize", NormalisableRange<float>(0,100,1),10, AudioParameterFloatAttributes().withLabel("%")));
     p.add(std::make_unique<AudioParameterFloat>(ParameterID{"mix",1}, "Mix", NormalisableRange<float>(0,100,1),100, AudioParameterFloatAttributes().withLabel("%")));
     p.add(std::make_unique<AudioParameterFloat>(ParameterID{"output",1}, "Output", NormalisableRange<float>(-18,12,0.1f),0, AudioParameterFloatAttributes().withLabel("dB")));
+    p.add(std::make_unique<AudioParameterFloat>(ParameterID{"vocalGate",1}, "Vocal Gate", NormalisableRange<float>(-60,-18,1),-42, AudioParameterFloatAttributes().withLabel("dB")));
     p.add(std::make_unique<AudioParameterBool>(ParameterID{"bypass",1}, "Bypass",false));
     return p;
 }
@@ -27,7 +28,7 @@ PremTuneProcessor::PremTuneProcessor()
     size_t index=2;
     for(int chord=1;chord<=5;++chord) for(const char* suffix:{"Enabled","Root","Quality"})
         values[index++]=state.getRawParameterValue((chord==1?"chord":"chord"+juce::String(chord))+suffix);
-    for(const char* id:{"retune","amount","humanize","mix","output","bypass"}) values[index++]=state.getRawParameterValue(id);
+    for(const char* id:{"retune","amount","humanize","mix","output","vocalGate","bypass"}) values[index++]=state.getRawParameterValue(id);
 }
 void PremTuneProcessor::prepareToPlay(double rate,int) { engine.prepare(rate); setLatencySamples(engine.latencySamples()); }
 bool PremTuneProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
@@ -45,12 +46,13 @@ void PremTuneProcessor::process(juce::AudioBuffer<float>& b,bool hostBypass) {
     size_t index=2;
     for(size_t chord=0;chord<5;++chord) { s.chordEnabled[chord]=values[index++]->load()>0.5f; s.chordRoot[chord]=(int)values[index++]->load(); s.chordQuality[chord]=(int)values[index++]->load(); }
     s.retuneMs=values[index++]->load(); s.amount=values[index++]->load(); s.humanize=values[index++]->load(); s.mix=values[index++]->load();
-    s.outputDb=hostBypass ? 0 : values[index++]->load(); s.bypass=hostBypass || values[index]->load()>0.5f;
+    s.outputDb=hostBypass ? 0 : values[index++]->load(); s.vocalGateDb=values[index++]->load(); s.bypass=hostBypass || values[index]->load()>0.5f;
     if(s.bypass) s.outputDb=0;
     level.store(b.getRMSLevel(0,0,b.getNumSamples()),std::memory_order_relaxed);
     engine.process(b.getArrayOfWritePointers(),std::min(2,b.getNumChannels()),b.getNumSamples(),s);
     detected.store(engine.frequency,std::memory_order_relaxed); target.store(engine.targetMidi,std::memory_order_relaxed);
     cents.store(engine.correctionCents,std::memory_order_relaxed);
+    gateOpen.store(engine.vocalGateOpen?1.0f:0.0f,std::memory_order_relaxed);
 }
 const juce::String PremTuneProcessor::getProgramName(int i) { return juce::StringArray{"Live Vocal","Hard Tune","Natural"}[juce::jlimit(0,2,i)]; }
 void PremTuneProcessor::setCurrentProgram(int i) {

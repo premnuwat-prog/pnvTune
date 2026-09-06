@@ -10,11 +10,13 @@ int main(int argc,char** argv){
     p.state.getParameter("chordRoot")->setValueNotifyingHost(p.state.getParameter("chordRoot")->convertTo0to1(4));
     p.state.getParameter("chord5Enabled")->setValueNotifyingHost(1);
     p.state.getParameter("chord5Root")->setValueNotifyingHost(p.state.getParameter("chord5Root")->convertTo0to1(11));
+    p.state.getParameter("vocalGate")->setValueNotifyingHost(p.state.getParameter("vocalGate")->convertTo0to1(-35));
     juce::MemoryBlock saved;p.getStateInformation(saved);
     PremTuneProcessor restored;restored.setStateInformation(saved.getData(),(int)saved.getSize());
     if(restored.state.getRawParameterValue("key")->load()!=7 || restored.state.getRawParameterValue("scale")->load()!=1
        || restored.state.getRawParameterValue("chordEnabled")->load()!=1 || restored.state.getRawParameterValue("chordRoot")->load()!=4
        || restored.state.getRawParameterValue("chord5Enabled")->load()!=1 || restored.state.getRawParameterValue("chord5Root")->load()!=11
+       || restored.state.getRawParameterValue("vocalGate")->load()!=-35
        || restored.state.getRawParameterValue("retune")->load()!=0 || restored.getCurrentProgram()!=1)return 1;
     if(p.getLatencySamples()!=576)return 2;
     if(argc>1){
