@@ -173,5 +173,5 @@ void PremTuneEditor::paint(juce::Graphics& g){
     g.setColour(meter>0.8f?juce::Colour(0xffff9f7d):lime);
     const float db=juce::Decibels::gainToDecibels(meter,-60.0f);
     g.fillRoundedRectangle(630,593,102*juce::jlimit(0.0f,1.0f,(db+60)/60),7,3);
-    text(g,"v0.4",{769,585,43,24},9,muted,juce::Justification::centredRight);
+    text(g,"v0.4.1",{757,585,55,24},9,muted,juce::Justification::centredRight);
 }

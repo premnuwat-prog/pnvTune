@@ -1,11 +1,11 @@
-# pnvTune 0.4 validation — 2026-09-07
+# pnvTune 0.4.1 validation — 2026-09-07
 
 Built in Release for Apple Silicon arm64 using Apple clang 17 and JUCE 8.0.9.
 
 ## Completed
 
 - Apple `auval -v aufx Ptun Prem -strict`: **AU VALIDATION SUCCEEDED**.
-  Full log: auval-pnvTune-v0.3.log.
+  Full log: auval-pnvTune-v0.4.1.log.
 - Apple validator: initialization, mono/stereo rendering, parameter scheduling/ramping,
   factory presets, latency/tail properties and custom Cocoa UI passed.
 - AU and VST3 bundles: ad-hoc signatures verified with `codesign --verify --strict`.
@@ -40,7 +40,8 @@ Built in Release for Apple Silicon arm64 using Apple clang 17 and JUCE 8.0.9.
 - Chord slot 1 retains PremTune 0.2's parameter IDs, so its enable/root/type automation
   and saved values can migrate; slots 2–5 are new parameters.
 - The editor begins with no chord rows. `+ ADD CHORD` reveals and enables one slot at a
-  time; `−` disables and hides the last slot. The visible count is saved with plugin state.
+  time; `X` disables and hides the last slot. The visible count is saved with plugin state.
+- The remove-chord button uses the ASCII `X` glyph so Logic and macOS fonts render it reliably.
 
 ## Limits of verification
 

@@ -19,7 +19,7 @@ private:
     juce::ComboBox key,scale,preset;
     std::array<juce::ComboBox,5> chordRoot,chordQuality;
     std::array<juce::TextButton,5> chordToggle;
-    juce::TextButton addChord{"+  ADD CHORD"},removeChord{"−"},bypass{"BYPASS"};
+    juce::TextButton addChord{"+  ADD CHORD"},removeChord{"X"},bypass{"BYPASS"};
     juce::Slider vocalGate;
     std::array<juce::Slider,5> knobs;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>,5> sliderAttachments;
